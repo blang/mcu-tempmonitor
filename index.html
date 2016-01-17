@@ -1,0 +1,44 @@
+<html>
+    <head>
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+        <script type="text/javascript" src="https://code.jquery.com/jquery-2.2.0.min.js"></script>
+        <script type="text/javascript">
+$( document ).ready(function() {
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(drawChart);
+function drawChart() {
+    var data = new google.visualization.DataTable();
+    data.addColumn('datetime', 'Date');
+    data.addColumn('number', 'Temp');
+    var chart = new google.visualization.LineChart(document.getElementById('curve_chart'));
+    var options = {
+        title: 'Temperatur',
+        //curveType: 'function',
+        legend: { position: 'bottom' }
+    };
+    $.ajax({
+        url: '/list',
+        dataType: 'json',  
+    }).done(function (results) {
+
+
+    // loop through results and log temperature to the console
+    $.each(results, function (index, row) {
+        data.addRow([
+            (new Date(row.ts*1000)),
+            parseFloat(row.temp)
+        ]);
+    });
+
+    chart.draw(data, options);
+    setTimeout(drawChart, 2000);
+    });
+}
+
+});
+        </script>
+    </head>
+    <body>
+        <div id="curve_chart" style="width: 100%; height: 100%"></div>
+    </body>
+</html>
