@@ -17,24 +17,36 @@ var (
 	staticDir  = flag.String("static-dir", filepath.Dir(os.Args[0]), "Path to static files")
 	high       = flag.Float64("high", 40, "Maximum temperature")
 	low        = flag.Float64("low", -10, "Minimum temperature")
+	interval   = flag.Duration("interval", 30*time.Second, "Probe interval")
+	buffersize = flag.Int("size", 3000, "Size of records")
 )
 
-var tempBuf = TempBuffer{
-	buf: ring.New(100000),
-}
+var tempBuf TempBuffer
 
 func main() {
 	flag.Parse()
+
+	tempBuf = TempBuffer{
+		buf: ring.New(*buffersize),
+	}
+
+	var intervalBuf []float32
+	nextI := nextInterval()
 
 	handler := func(f float32) {
 		if float64(f) > *high || float64(f) < *low {
 			return
 		}
-		tempBuf.Append(
-			Temp{
-				TS:    time.Now(),
-				Value: f,
-			})
+		intervalBuf = append(intervalBuf, f)
+		if time.Now().After(nextI) {
+			tempBuf.Append(
+				Temp{
+					TS:    time.Now(),
+					Value: mean(intervalBuf),
+				})
+			intervalBuf = intervalBuf[:0]
+			nextI = nextInterval()
+		}
 		log.Printf("Temp: %.02f", f)
 	}
 	http.HandleFunc("/list", List)
@@ -47,6 +59,18 @@ func main() {
 	if err := ListenAndServeUDP(*listenUDP, handler); err != nil {
 		log.Fatalf("Error UDP: %s", err)
 	}
+}
+
+func mean(b []float32) float32 {
+	var sum float32 = 0
+	for _, e := range b {
+		sum += e
+	}
+	return sum / float32(len(b))
+}
+
+func nextInterval() time.Time {
+	return time.Now().Add(*interval)
 }
 
 type JSONTemp struct {
